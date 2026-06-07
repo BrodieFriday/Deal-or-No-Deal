@@ -3,112 +3,135 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"strings"
+	"time"
 )
 
-var initialCaseNumber int
-var initialCaseValue int
-var offerFromBank int
-var responseToBankOffer string
-var selectionRound int
-var arrCases = [20]int{
-	10, 15, 20, 25, 30, 40, 45, 55, 75, 100, 125, 150, 200, 250, 275, 325, 400, 500, 750, 1000,
+const numCases = 20
+
+type Game struct {
+	cases            [numCases]int
+	playerCaseIndex  int
+	playerCaseValue  int
+	round            int
+	bankOffer        int
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+
+	game := &Game{}
+	game.initialize()
+
 	fmt.Println("Welcome to Deal or No Deal")
 	fmt.Println()
-	fmt.Println("Please select a case to get started")
-	fmt.Println()
 
-	// fmt.Println(arrCases)
-	// Randomize the cases
-	for i := range arrCases {
-		j := rand.Intn(i + 1)
-		arrCases[i], arrCases[j] = arrCases[j], arrCases[i]
+	game.printCases()
+	game.selectInitialCase()
+
+	for {
+		game.playRound()
+		if game.acceptOffer() {
+			break
+		}
+		game.round++
 	}
-
-	printCases()
-
-	selectInitialCase()
-
-	caseSelection()
-
-	for responseToBankOffer != "deal" {
-		caseSelection()
-	}
-
 }
 
-func printCases() {
-	fmt.Println()
+func (g *Game) initialize() {
+	values := [numCases]int{10, 15, 20, 25, 30, 40, 45, 55, 75, 100, 125, 150, 200, 250, 275, 325, 400, 500, 750, 1000}
 
-	// Print the cases
-	for i := 0; i < len(arrCases); i++ {
-		// Display the emoji.
-		if arrCases[i] == -1 {
-			fmt.Print("case ", i, " ", "❌", " ")
-		} else if arrCases[i] == -2 {
-			fmt.Print("case ", i, " ", "✅", " ")
-		} else {
-			fmt.Print("case ", i, " ", "💼", " ")
+	// Fisher-Yates shuffle
+	for i := len(values) - 1; i > 0; i-- {
+		j := rand.Intn(i + 1)
+		values[i], values[j] = values[j], values[i]
+	}
+
+	g.cases = values
+	g.round = 1
+}
+
+func (g *Game) printCases() {
+	fmt.Println()
+	for i := 0; i < numCases; i++ {
+		switch {
+		case g.cases[i] == -1:
+			fmt.Printf("Case %2d ❌ ", i)
+		case g.cases[i] == -2:
+			fmt.Printf("Case %2d ✅ ", i)
+		default:
+			fmt.Printf("Case %2d 💼 ", i)
 		}
-		if i == 5 || i == 10 || i == 15 || i == len(arrCases) {
+
+		if (i+1)%5 == 0 || i == numCases-1 {
 			fmt.Println()
 		}
 	}
 	fmt.Println()
 }
 
-func selectInitialCase() {
-	fmt.Println()
+func (g *Game) selectInitialCase() {
 	fmt.Print("What case number did you select as your initial case? ")
-	fmt.Scan(&initialCaseNumber)
-	fmt.Println("Great! We will find out what is in case ", initialCaseNumber, " later.")
-	initialCaseValue = arrCases[initialCaseNumber]
-	arrCases[initialCaseNumber] = -2
-	selectionRound = 1
+	fmt.Scan(&g.playerCaseIndex)
 
-}
-
-func caseSelection() {
-	fmt.Println()
-	fmt.Println()
-	if selectionRound == 1 {
-		fmt.Println("Lets start by opening up five cases")
-	} else {
-		fmt.Println("Lets start by opening up five more cases")
-	}
-	var lastOpenedCase int
-	for i := 1; i < 6; i++ {
-		printCases()
-		fmt.Print("What is your selection for case ", i, " ?")
-		fmt.Scan(&lastOpenedCase)
-		fmt.Println("Case ", lastOpenedCase, " contained ", arrCases[lastOpenedCase])
-		arrCases[lastOpenedCase] = -1
-		fmt.Println()
+	if g.playerCaseIndex < 0 || g.playerCaseIndex >= numCases {
+		fmt.Println("Invalid case number. Using case 0.")
+		g.playerCaseIndex = 0
 	}
 
-	offerFromBanker()
+	g.playerCaseValue = g.cases[g.playerCaseIndex]
+	g.cases[g.playerCaseIndex] = -2
+
+	fmt.Printf("Great! We'll reveal Case %d at the end.\n", g.playerCaseIndex)
 }
 
-func offerFromBanker() {
-	max := arrCases[0]
-	for i := 1; i < len(arrCases); i++ {
-		if max < arrCases[i] {
-			max = arrCases[i]
+func (g *Game) playRound() {
+	casesToOpen := 5
+	fmt.Printf("\nRound %d: Open %d cases\n", g.round, casesToOpen)
+
+	for i := 0; i < casesToOpen; i++ {
+		g.printCases()
+		var selection int
+		fmt.Printf("Select case %d: ", i+1)
+		fmt.Scan(&selection)
+
+		if selection < 0 || selection >= numCases || g.cases[selection] < 0 {
+			fmt.Println("Invalid selection. Try again.")
+			i--
+			continue
+		}
+
+		fmt.Printf("Case %d contained $%d\n", selection, g.cases[selection])
+		g.cases[selection] = -1
+	}
+}
+
+func (g *Game) calculateBankOffer() int {
+	max := 0
+	for _, val := range g.cases {
+		if val > max {
+			max = val
 		}
 	}
+	// Improved offer calculation
+	return max + rand.Intn(max/3+50)
+}
 
-	offerFromBank = max + rand.Intn(100)
-	fmt.Println("The bank is offering you ", offerFromBank)
-	fmt.Println("DEAL OR NO DEAL ?")
-	fmt.Scanln(&responseToBankOffer)
+func (g *Game) acceptOffer() bool {
+	g.bankOffer = g.calculateBankOffer()
 
-	if responseToBankOffer == "deal" || responseToBankOffer == "DEAL" {
-		fmt.Println("CONGRADULATIONS! You won $", offerFromBank)
-		fmt.Println("Your case value was $", initialCaseValue)
-	} else {
-		selectionRound = 2
+	fmt.Printf("\nThe bank is offering: $%d\n", g.bankOffer)
+	fmt.Print("DEAL or NO DEAL? (deal/no): ")
+
+	var response string
+	fmt.Scanln(&response)
+	response = strings.ToLower(strings.TrimSpace(response))
+
+	if response == "deal" {
+		fmt.Printf("\nCongratulations! You accepted the bank's offer of $%d\n", g.bankOffer)
+		fmt.Printf("Your original case contained: $%d\n", g.playerCaseValue)
+		return true
 	}
 
+	return false
 }
